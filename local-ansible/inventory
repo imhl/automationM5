@@ -1,2 +1,2 @@
 [jenkins]
-54.82.185.15
+54.146.23.139 ansible_user=ubuntu

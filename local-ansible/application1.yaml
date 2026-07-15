@@ -12,19 +12,19 @@
   tasks:
   - name: Clone the StaycationX repository with deploy key
     git:
-      repo: "git@github.com:{{GIT_USERNAME}}/StaycationXT4.git"
+      repo: "git@github.com:{{GIT_USERNAME}}/StaycationXM5.git"
       dest: /opt/StaycationX
       version: main
     environment:
-      GIT_SSH_COMMAND: "ssh -i ~/.ssh/StaycationXT4-deploy-key"
+      GIT_SSH_COMMAND: "ssh -i ~/.ssh/StaycationXM5-deploy-key"
 
   - name: Clone the myReactApp repository with deploy key
     git:
-      repo: "git@github.com:{{GIT_USERNAME}}/myReactAppT4.git"
+      repo: "git@github.com:{{GIT_USERNAME}}/myReactAppM5.git"
       dest: /opt/myReactApp
       version: main
     environment:
-      GIT_SSH_COMMAND: "ssh -i ~/.ssh/myReactAppT4-deploy-key"
+      GIT_SSH_COMMAND: "ssh -i ~/.ssh/myReactAppM5-deploy-key"
 
   - name: Stop running containers
     community.docker.docker_compose_v2:

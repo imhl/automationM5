@@ -96,15 +96,15 @@
         owner: root
         mode: "0400"
       loop:
-        - "myReactAppT4"
-        - "StaycationXT4"
+        - "myReactAppM5"
+        - "StaycationXM5"
 
     - name: read deploy public keys of both repos from jenkins machine
       slurp:
         src: "~/.ssh/{{item}}-deploy-key.pub"
       loop:
-        - "myReactAppT4"
-        - "StaycationXT4"
+        - "myReactAppM5"
+        - "StaycationXM5"
       register: deploypubkeys
 
     - name: upload deploy keys to GitHub to the respective repos
