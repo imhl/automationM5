@@ -1,0 +1,154 @@
+---
+- name: Configure necessary software in EC2 (Part 1)
+  hosts: jenkins
+  gather_facts: true
+  become: yes
+  become_user: root
+  become_method: sudo
+  vars_files:
+    - secrets.yaml
+
+  tasks:
+    - name: Install necessary software
+      apt:
+        name: "{{ item }}"
+        state: present
+        update_cache: yes
+      loop:
+        - python3-pip
+        - python3-venv
+        - gnupg
+        - software-properties-common
+        - unzip
+        - git
+        - pass
+        - acl
+        - rng-tools
+
+    # - name: create virtualenv
+    #   command: python3 -m venv /opt/ansible-venv
+    #   args:
+    #     creates: /opt/ansible-venv/bin/activate
+
+    - name: Retrieve Ansible PPA GPG key
+      get_url:
+        url: https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x6125E2A8C77F2818FB7BD15B93C4A3FD7BB9C367
+        dest: /usr/share/keyrings/ansible-ppa.asc
+        mode: "0644"
+
+    - name: Add Ansible PPA repo
+      deb822_repository:
+        name: ansible-ubuntu-ppa
+        types: deb
+        uris: https://ppa.launchpadcontent.net/ansible/ansible/ubuntu
+        suites: '{{ansible_facts["distribution_release"]}}'
+        components: main
+        architectures: amd64
+        signed_by: /usr/share/keyrings/ansible-ppa.asc
+
+#     - name: Install necessary libraries
+#       pip:
+#         name:
+#           - ansible
+#           - docker
+#         virtualenv: /opt/ansible-venv
+
+    - name: Retrieve Docker GPG key
+      get_url:
+        url: https://download.docker.com/linux/ubuntu/gpg
+        dest: /etc/apt/keyrings/docker.asc
+        mode: "0644"
+
+    - name: Add Docker repo
+      deb822_repository:
+        name: docker
+        types: deb
+        uris: https://download.docker.com/linux/ubuntu
+        components: stable
+        architectures: amd64
+        suites: '{{ansible_facts["distribution_release"]}}'
+        signed_by: /etc/apt/keyrings/docker.asc
+
+    - name: Update apt cache and install both docker and ansible
+      apt:
+        name: "{{ item }}"
+        state: latest
+        update_cache: true
+      loop:
+        - docker-ce
+        - ansible
+
+    - name: Download docker credential helper
+      get_url:
+        url: https://github.com/docker/docker-credential-helpers/releases/download/v0.9.8/docker-credential-pass-v0.9.8.linux-amd64
+        dest: /usr/local/bin/docker-credential-pass
+        mode: 755
+
+    - name: add GitHub SSH public key to known_hosts file
+      known_hosts:
+        path: /root/.ssh/known_hosts
+        name: github.com
+        key: "{{ lookup('pipe', 'ssh-keyscan -t rsa github.com') }}"
+
+    - name: generate deploy key for the StaycationX and myReactApp repos
+      openssh_keypair:
+        path: "~/.ssh/{{item}}-deploy-key"
+        owner: root
+        mode: "0400"
+      loop:
+        - "myReactAppT4"
+        - "StaycationXT4"
+
+    - name: read deploy public keys of both repos from jenkins machine
+      slurp:
+        src: "~/.ssh/{{item}}-deploy-key.pub"
+      loop:
+        - "myReactAppT4"
+        - "StaycationXT4"
+      register: deploypubkeys
+
+    - name: upload deploy keys to GitHub to the respective repos
+      github_deploy_key:
+        repo: "{{ item.item}}"
+        read_only: true
+        key: "{{ item.content | b64decode }}"
+        name: "{{ item.item}}-deploy-key"
+        owner: "{{GIT_USERNAME}}"
+        token: "{{GITHUB_PAT}}"
+      loop: "{{deploypubkeys.results}}"
+      no_log: true
+
+    - name: create ansible roles folder in home directory
+      file:
+        path: ~/.ansible/roles/juju4.gpgkey_generate/
+        state: directory
+        mode: "0755"
+        owner: ubuntu
+        group: ubuntu
+
+    - name: git clone juju4 role
+      git:
+        repo: "https://github.com/imhl/ansible-gpgkey_generate.git"
+        dest: ~/.ansible/roles/juju4.gpgkey_generate
+        version: main
+      become: true
+      become_user: ubuntu
+      become_method: sudo
+
+- name: install juju4 role in localhost (Part 2)
+  hosts: localhost
+  gather_facts: true
+  tasks:
+    - name: create ansible roles folder in home directory
+      file:
+        path: ~/.ansible/roles/juju4.gpgkey_generate/
+        state: directory
+        mode: "0755"
+        owner: "{{ ansible_facts['env']['USER'] }}"
+        group: "{{ ansible_facts['real_group_id'] }}"
+
+    - name: git clone juju4 role
+      git:
+        repo: "https://github.com/imhl/ansible-gpgkey_generate.git"
+        dest: ~/.ansible/roles/juju4.gpgkey_generate
+        version: main

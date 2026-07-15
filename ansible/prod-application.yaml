@@ -1,0 +1,65 @@
+---
+
+- name: Run application with docker containers on deployment server
+  hosts: tag_group_web
+  gather_facts: true
+  become: yes
+  become_user: root
+  become_method: sudo
+  vars:
+    jenkins_path: /var/lib/jenkins/workspace/
+    pipeline_name: pipeline1
+
+  tasks:
+
+  - name: Retrieve Docker GPG key
+    get_url:
+      url: https://download.docker.com/linux/ubuntu/gpg
+      dest: /etc/apt/keyrings/docker.asc
+      mode: "0644"
+
+  - name: Add Docker repo
+    deb822_repository:
+      name: docker
+      types: deb
+      uris: https://download.docker.com/linux/ubuntu
+      components: stable
+      architectures: amd64
+      suites: '{{ansible_facts["distribution_release"]}}'
+      signed_by: /etc/apt/keyrings/docker.asc
+
+  - name: Update apt cache and install docker
+    apt:
+      name: docker-ce
+      state: latest
+      update_cache: true
+
+  - name: Copy dockerhub.yml from delivery machine to deployment machine
+    copy:
+      src: "{{jenkins_path}}/{{pipeline_name}}/StaycationX/dockerhub.yml"
+      dest: /root/dockerhub.yml
+      owner: root
+      group: root
+      mode: '0644'
+
+  - name: Stop running containers
+    community.docker.docker_compose_v2:
+      project_src: /root
+      files:
+        - dockerhub.yml
+      state: absent
+    # command: docker compose -f dockerhub.yml down
+    # args:
+    #   chdir: /root
+
+  - name: Remove all images
+    shell: docker rmi -f $(sudo docker images -a -q)
+    ignore_errors: true
+
+  - name: Use docker compose to deploy the application with dockerhub.yml file
+    community.docker.docker_compose_v2:
+      project_src: /root
+      state: present
+      files:
+        - dockerhub.yml
+    # command: docker compose -f /root/dockerhub.yml up -d
